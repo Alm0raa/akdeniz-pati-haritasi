@@ -8,17 +8,24 @@ const initial=[
 ];
 const colors={full:'#14945f',warning:'#f0a51a',urgent:'#6c3bb8',empty:'#df3939'};
 function MapView({points,onPoint,full,onOpen,onClose}){
- const [zoom,setZoom]=useState(full?1.15:1.08),[pos,setPos]=useState({x:0,y:0}),[drag,setDrag]=useState(false);
- const pointer=useRef({x:0,y:0,px:0,py:0});
+ const box=useRef(null), pointer=useRef({x:0,y:0,px:0,py:0});
+ const [zoom,setZoom]=useState(full?1.08:1.12),[pos,setPos]=useState({x:0,y:0}),[drag,setDrag]=useState(false);
+ const clamp=(next,z=zoom)=>{
+  const w=box.current?.clientWidth||390,h=box.current?.clientHeight||520;
+  const baseW=full?h*1.5:w,baseH=full?h:w/1.5;
+  const maxX=Math.max(0,(baseW*z-w)/2),maxY=Math.max(0,(baseH*z-h)/2);
+  return{x:Math.max(-maxX,Math.min(maxX,next.x)),y:Math.max(-maxY,Math.min(maxY,next.y))};
+ };
  const down=e=>{if(e.target.closest('button'))return;e.currentTarget.setPointerCapture?.(e.pointerId);pointer.current={x:e.clientX,y:e.clientY,px:pos.x,py:pos.y};setDrag(true)};
- const move=e=>{if(!drag)return;e.preventDefault();setPos({x:pointer.current.px+e.clientX-pointer.current.x,y:pointer.current.py+e.clientY-pointer.current.y})};
- const up=e=>{e.currentTarget.releasePointerCapture?.(e.pointerId);setDrag(false)};
- return <div className={full?'map full':'map'} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+ const move=e=>{if(!drag)return;e.preventDefault();setPos(clamp({x:pointer.current.px+e.clientX-pointer.current.x,y:pointer.current.py+e.clientY-pointer.current.y}))};
+ const up=e=>{e.currentTarget.releasePointerCapture?.(e.pointerId);setDrag(false);setPos(p=>clamp(p))};
+ const changeZoom=delta=>setZoom(z=>{const nz=Math.max(1,Math.min(3,z+delta));setPos(p=>clamp(p,nz));return nz});
+ return <div ref={box} className={full?'map full':'map'} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
   <div className="mapInner" style={{transform:`translate3d(${pos.x}px,${pos.y}px,0) scale(${zoom})`,transition:drag?'none':'transform .18s'}}>
    <img src="/akdeniz-pati-haritasi.png" alt="Akdeniz Üniversitesi kampüs haritası" draggable="false"/>
    {points.map(p=><button className="pin" key={p.id} style={{left:p.x+'%',top:p.y+'%',background:colors[p.status]}} onPointerDown={e=>e.stopPropagation()} onClick={()=>onPoint(p)}><PawPrint size={15}/></button>)}
   </div>
-  <div className="mapTools">{full&&<button onClick={onClose}><X/></button>}<button onClick={()=>setZoom(z=>Math.min(3,z+.25))}><Plus/></button><button onClick={()=>setZoom(z=>Math.max(1,z-.25))}><Minus/></button></div>
+  <div className="mapTools">{full&&<button onClick={onClose}><X/></button>}<button onClick={()=>changeZoom(.25)}><Plus/></button><button onClick={()=>changeZoom(-.25)}><Minus/></button></div>
   {!full&&<div className="mapBar"><span><PawPrint size={15}/> 3 örnek nokta</span><button onClick={onOpen}><Expand size={16}/> Büyüt</button></div>}
  </div>
 }

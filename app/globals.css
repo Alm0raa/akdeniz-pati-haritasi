@@ -2,3 +2,8 @@
 .scanHead{display:flex;justify-content:space-between;align-items:flex-start}.scanHead button{background:#ffffff1a;color:white;border:0;border-radius:12px;padding:10px}.camera{position:relative;margin:75px auto 22px;width:min(78vw,290px);aspect-ratio:1;border-radius:28px;overflow:hidden;background:#07130d;border:3px solid #6ee7b7}.camera video{width:100%;height:100%;object-fit:cover}.corners{position:absolute;inset:0;display:grid;place-items:center;color:#ffffff55;box-shadow:inset 0 0 0 18px #0004}.manual{display:flex;gap:8px;margin-top:18px}.manual input{min-width:0;flex:1;border:1px solid #ffffff30;border-radius:14px;background:#ffffff12;color:white;padding:13px}.manual button{border:0;border-radius:14px;background:#6ee7b7;color:#10271d;padding:0 15px;font-weight:900}.demo{display:block;margin-top:12px;text-align:center;color:#ffffff70}
 
 .map.full{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;border:0;border-radius:0;touch-action:none}.overlay{position:fixed;inset:0;width:100vw;height:100dvh;z-index:100;background:#e8eedf}.overlay .mapInner{will-change:transform}.overlay .map img{pointer-events:none;user-select:none;-webkit-user-drag:none}
+
+/* Tam ekran harita, 3:2 kampüs görselini ekran yüksekliğine göre büyütür. Böylece kenarlarda boş alan oluşmaz. */
+.map.full .mapInner{inset:auto;top:0;left:50%;width:150dvh;height:100dvh;margin-left:-75dvh;transform-origin:center center}
+.map.full .mapInner img{width:100%;height:100%;object-fit:fill}
+@media (orientation:landscape){.map.full .mapInner{top:50%;left:0;width:100vw;height:66.6667vw;margin-left:0;margin-top:-33.3333vw}}
