@@ -7,18 +7,82 @@ const seed=[
 const S={full:["Dolu","#0A8F5B"],warning:["Azalıyor","#FFB000"],urgent:["Kontrol","#7146D9"],empty:["Boş olabilir","#F04444"]};
 const ago=t=>{let h=Math.max(0,Math.floor((Date.now()-t)/3600000));return h<1?"Şimdi":h<24?`${h} saat önce`:`${Math.floor(h/24)} gün önce`};
 function MapView({image,points,onPoint,admin,onAdd,full=false,onExpand,onClose}){
- const frame=useRef(null),active=useRef(new globalThis.Map()),gesture=useRef({}),size=useRef({w:1,h:1});
- const[z,setZ]=useState(full?1.08:1),[p,setP]=useState({x:0,y:0}),[moving,setMoving]=useState(false),[dims,setDims]=useState({w:1,h:1});
- useEffect(()=>{const measure=()=>{const el=frame.current;if(!el)return;const w=el.clientWidth,h=el.clientHeight;size.current={w,h};setDims({w,h});setP(old=>clamp(old,z,w,h))};measure();const ro=new ResizeObserver(measure);if(frame.current)ro.observe(frame.current);return()=>ro.disconnect()},[]);
- const cover=(w=dims.w,h=dims.h)=>{const ratio=1.5;return w/h>ratio?{w,h:w/ratio}:{w:h*ratio,h}};
- const clamp=(next,zoom=z,w=size.current.w,h=size.current.h)=>{const base=w/h>1.5?{w,h:w/1.5}:{w:h*1.5,h};const maxX=Math.max(0,(base.w*zoom-w)/2),maxY=Math.max(0,(base.h*zoom-h)/2);return{x:Math.max(-maxX,Math.min(maxX,next.x)),y:Math.max(-maxY,Math.min(maxY,next.y))}};
- const dist=a=>Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
- const down=e=>{if(e.target.closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture?.(e.pointerId);active.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const a=[...active.current.values()];if(a.length===1)gesture.current={sx:a[0].x,sy:a[0].y,x:p.x,y:p.y,z};if(a.length===2)gesture.current={d:dist(a),z,x:p.x,y:p.y};setMoving(true)};
- const move=e=>{if(!active.current.has(e.pointerId))return;e.preventDefault();active.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const a=[...active.current.values()];if(a.length===1){setP(clamp({x:gesture.current.x+a[0].x-gesture.current.sx,y:gesture.current.y+a[0].y-gesture.current.sy}))}else if(a.length>=2){const next=Math.max(1,Math.min(4,gesture.current.z*dist(a)/Math.max(1,gesture.current.d)));setZ(next);setP(old=>clamp(old,next))}};
- const up=e=>{active.current.delete(e.pointerId);e.currentTarget.releasePointerCapture?.(e.pointerId);const a=[...active.current.values()];if(a.length===1)gesture.current={sx:a[0].x,sy:a[0].y,x:p.x,y:p.y,z};if(!a.length){setMoving(false);setP(old=>clamp(old))}};
- const zoom=d=>setZ(old=>{const next=Math.max(1,Math.min(4,old+d));setP(pos=>clamp(pos,next));return next});
- const base=cover();
- return <div ref={frame} className={full?'map mapFull':'map'} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={e=>{if(!admin)return;let r=e.currentTarget.getBoundingClientRect();onAdd({x:+(((e.clientX-r.left)/r.width)*100).toFixed(1),y:+(((e.clientY-r.top)/r.height)*100).toFixed(1)})}}><div className="mapInner boundedCanvas" style={{width:base.w,height:base.h,left:'50%',top:'50%',transform:`translate(-50%,-50%) translate3d(${p.x}px,${p.y}px,0) scale(${z})`,transition:moving?'none':'transform .18s ease'}}><img src={image}/>{points.map(q=><button key={q.id} className="pin" style={{left:q.x+'%',top:q.y+'%',background:S[q.status][1]}} onPointerDown={e=>e.stopPropagation()} onClick={()=>onPoint(q)}><PawPrint size={15}/></button>)}</div><div className="zoom">{full&&<button aria-label="Tam ekranı kapat" onClick={onClose}><X/></button>}<button aria-label="Yakınlaştır" onClick={()=>zoom(.3)}><Plus/></button><button aria-label="Uzaklaştır" onClick={()=>zoom(-.3)}><Minus/></button>{!full&&!admin&&<button aria-label="Tam ekran" onClick={onExpand}><Expand/></button>}</div>{admin&&<div className="mapHint"><MapPin size={15}/> Nokta eklemek için haritaya çift tıkla</div>}</div>}
+ const viewport=useRef(null);
+ const pointers=useRef(new globalThis.Map());
+ const gesture=useRef({});
+ const [view,setView]=useState({scale:1,x:0,y:0});
+ const [dragging,setDragging]=useState(false);
+ const [viewportSize,setViewportSize]=useState({width:1,height:1});
+
+ useEffect(()=>{
+  const element=viewport.current;
+  if(!element)return;
+  const measure=()=>setViewportSize({width:element.clientWidth||1,height:element.clientHeight||1});
+  measure();
+  const observer=new ResizeObserver(measure);
+  observer.observe(element);
+  return()=>observer.disconnect();
+ },[]);
+
+ const imageRatio=1.5;
+ const baseSize=useMemo(()=>{
+  const {width,height}=viewportSize;
+  return width/height>imageRatio
+   ?{width,height:width/imageRatio}
+   :{width:height*imageRatio,height};
+ },[viewportSize]);
+
+ const clamp=(next,nextScale=next.scale)=>{
+  const maxX=Math.max(0,(baseSize.width*nextScale-viewportSize.width)/2);
+  const maxY=Math.max(0,(baseSize.height*nextScale-viewportSize.height)/2);
+  return{scale:nextScale,x:Math.max(-maxX,Math.min(maxX,next.x)),y:Math.max(-maxY,Math.min(maxY,next.y))};
+ };
+ const distance=values=>Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y);
+ const pointerDown=e=>{
+  if(e.target.closest('button'))return;
+  e.preventDefault();
+  e.currentTarget.setPointerCapture?.(e.pointerId);
+  pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const values=[...pointers.current.values()];
+  if(values.length===1)gesture.current={startX:values[0].x,startY:values[0].y,x:view.x,y:view.y,scale:view.scale};
+  if(values.length===2)gesture.current={distance:distance(values),x:view.x,y:view.y,scale:view.scale};
+  setDragging(true);
+ };
+ const pointerMove=e=>{
+  if(!pointers.current.has(e.pointerId))return;
+  e.preventDefault();
+  pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const values=[...pointers.current.values()];
+  if(values.length===1){
+   setView(current=>clamp({...current,x:gesture.current.x+values[0].x-gesture.current.startX,y:gesture.current.y+values[0].y-gesture.current.startY}));
+  }else if(values.length>=2){
+   const scale=Math.max(1,Math.min(4,gesture.current.scale*distance(values)/Math.max(1,gesture.current.distance)));
+   setView(clamp({scale,x:gesture.current.x,y:gesture.current.y},scale));
+  }
+ };
+ const pointerUp=e=>{
+  pointers.current.delete(e.pointerId);
+  e.currentTarget.releasePointerCapture?.(e.pointerId);
+  const values=[...pointers.current.values()];
+  if(values.length===1)gesture.current={startX:values[0].x,startY:values[0].y,x:view.x,y:view.y,scale:view.scale};
+  if(values.length===0){setDragging(false);setView(current=>clamp(current,current.scale));}
+ };
+ const zoom=delta=>setView(current=>{const scale=Math.max(1,Math.min(4,current.scale+delta));return clamp({...current,scale},scale)});
+
+ return <div ref={viewport} className={full?'map mapFull':'map'} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onDoubleClick={e=>{if(!admin)return;const rect=e.currentTarget.getBoundingClientRect();onAdd({x:+(((e.clientX-rect.left)/rect.width)*100).toFixed(1),y:+(((e.clientY-rect.top)/rect.height)*100).toFixed(1)})}}>
+  <div className="mapInner mapCanvas" style={{width:baseSize.width,height:baseSize.height,left:'50%',top:'50%',transform:`translate(-50%,-50%) translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`,transition:dragging?'none':'transform .16s ease-out'}}>
+   <img src={image} draggable="false" alt="Akdeniz Üniversitesi kampüs haritası"/>
+   {points.map(point=><button key={point.id} className="pin" style={{left:point.x+'%',top:point.y+'%',background:S[point.status][1]}} onPointerDown={e=>e.stopPropagation()} onClick={()=>onPoint(point)}><PawPrint size={15}/></button>)}
+  </div>
+  <div className="zoom">
+   {full&&<button aria-label="Tam ekranı kapat" onClick={onClose}><X/></button>}
+   <button aria-label="Yakınlaştır" onClick={()=>zoom(.3)}><Plus/></button>
+   <button aria-label="Uzaklaştır" onClick={()=>zoom(-.3)}><Minus/></button>
+   {!full&&!admin&&<button aria-label="Tam ekran" onClick={onExpand}><Expand/></button>}
+  </div>
+  {admin&&<div className="mapHint"><MapPin size={15}/> Nokta eklemek için haritaya çift tıkla</div>}
+ </div>
+}
 function Sheet({point,onClose,onUpdate}){if(!point)return null;return <><button className="shade" onClick={onClose}/><section className="sheet"><div className="handle"/><button className="close" onClick={onClose}><X/></button><span className="badge" style={{color:S[point.status][1]}}>{S[point.status][0]} · {ago(point.updated)}</span><h2>{point.name}</h2><p><MapPin size={14}/> {point.area}</p><div className="info"><b><PawPrint/> {point.animals}</b><b><Utensils/> Mama noktası</b></div><div className="note">{point.text}</div><h3>Hızlı güncelleme</h3><div className="actions"><button className="primary" onClick={()=>onUpdate('full')}><Utensils/> Mama bıraktım</button><button onClick={()=>onUpdate('full')}><Check/> Mama hâlâ var</button><button onClick={()=>onUpdate('empty')}><CircleAlert/> Mama bitmiş</button><button><Camera/> Fotoğraf ekle</button></div></section></>}
 function Admin({points,setPoints,image,setImage,onBack}){const [selected,setSelected]=useState(null);const [draft,setDraft]=useState(null);const input=useRef();function add(pos){setDraft({id:Date.now(),name:"Yeni Mama Noktası",area:"Kampüs",status:"full",updated:Date.now(),animals:"Hayvan sayısı girilmedi",text:"Konum tarifi ekleyin.",...pos})}function save(){if(!draft)return;setPoints(v=>v.some(x=>x.id===draft.id)?v.map(x=>x.id===draft.id?draft:x):[...v,draft]);setDraft(null)}function file(e){let f=e.target.files?.[0];if(!f)return;let r=new FileReader();r.onload=()=>{setImage(r.result)};r.readAsDataURL(f)}
 return <div className="admin"><header className="adminHead"><button onClick={onBack}><ChevronLeft/></button><div><small>YÖNETİCİ PANELİ</small><h1>Pati kontrol merkezi</h1></div><Shield/></header><div className="adminStats"><div><b>{points.length}</b><span>Toplam nokta</span></div><div><b>{points.filter(x=>x.status==='empty'||x.status==='urgent').length}</b><span>Kontrol</span></div><div><b>{points.filter(x=>Date.now()-x.updated<86400000).length}</b><span>Bugün</span></div></div><div className="adminMap"><MapView image={image} points={points} admin onAdd={add} onPoint={q=>setDraft({...q})}/></div><div className="toolbar"><button onClick={()=>input.current.click()}><ImagePlus/> Haritayı değiştir</button><input ref={input} hidden type="file" accept="image/*" onChange={file}/><button onClick={()=>add({x:50,y:50})}><Plus/> Nokta ekle</button></div><section className="panel"><h2>Mama noktaları</h2>{points.map(q=><article key={q.id}><i style={{background:S[q.status][1]}}/><div><b>{q.name}</b><small>{q.area} · {ago(q.updated)}</small></div><button onClick={()=>setDraft({...q})}><Edit3/></button><button onClick={()=>setPoints(v=>v.filter(x=>x.id!==q.id))}><Trash2/></button></article>)}</section>{draft&&<div className="editor"><div className="editorHead"><h2>Nokta bilgileri</h2><button onClick={()=>setDraft(null)}><X/></button></div><label>Nokta adı<input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})}/></label><label>Bölge<input value={draft.area} onChange={e=>setDraft({...draft,area:e.target.value})}/></label><label>Hayvan bilgisi<input value={draft.animals} onChange={e=>setDraft({...draft,animals:e.target.value})}/></label><label>Konum tarifi<textarea value={draft.text} onChange={e=>setDraft({...draft,text:e.target.value})}/></label><label>Durum<select value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value})}>{Object.entries(S).map(([k,v])=><option value={k}>{v[0]}</option>)}</select></label><div className="coords">Harita konumu: %{draft.x} / %{draft.y}</div><button className="save" onClick={save}><Save/> Kaydet</button></div>}</div>}
