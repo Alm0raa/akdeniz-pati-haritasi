@@ -7,5 +7,15 @@
 .quick button+button{background:linear-gradient(145deg,#7547DB,#5325B3)}
 .save{background:linear-gradient(135deg,#09895A,#056A44)}
 
-/* Mama noktaları listesi */
-.pointsPage{position:absolute;inset:0;z-index:11;overflow-y:auto;background:#fffdf7;padding-bottom:28px}.pointsHead{position:sticky;top:0;z-index:2;display:flex;gap:14px;align-items:flex-start;background:rgba(255,253,247,.96);backdrop-filter:blur(14px);border-bottom:1px solid #e9eee9;padding:20px}.pointsHead>button{flex:0 0 auto;width:44px;height:44px;border-radius:15px;background:#fff;display:grid;place-items:center;box-shadow:0 5px 18px rgba(35,68,48,.12)}.pointsHead h1{font-size:24px;margin:2px 0}.pointsHead p{font-size:12px;margin:2px 0}.priorityNote{display:flex;align-items:center;gap:12px;margin:16px 20px 5px;padding:14px;border-radius:18px;background:#e5f4eb;color:#087a50}.priorityNote>svg{flex:0 0 auto}.priorityNote span,.priorityNote b,.priorityNote small{display:block}.priorityNote small{margin-top:3px;color:#547064}.pointsList{padding:10px 20px}.pointRow{width:100%;display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:13px 12px;border:1px solid #edf0ee;border-radius:18px;background:#fff;text-align:left;box-shadow:0 5px 18px rgba(35,68,48,.07)}.pointRank{width:18px;color:#9aa39e;font-size:11px;font-weight:900;text-align:center}.pointPaw{flex:0 0 auto;width:42px;height:42px;border-radius:15px;color:#fff;display:grid;place-items:center}.pointText{min-width:0;flex:1}.pointText b,.pointText small{display:block}.pointText b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.pointText small{margin-top:5px;color:#7c8781;font-size:10px}.pointStatus{font-size:10px;font-weight:900;white-space:nowrap}.pointRow>svg{flex:0 0 auto;color:#a8b0ac}nav button span{max-width:68px;line-height:1.1}
+.mapNote{margin:10px 4px 0;color:#718078;font-size:10px;line-height:1.45;font-style:italic;text-align:center}
+
+
+/* Kontrollü harita gezinme */
+.map,.map *{touch-action:none}
+.map{overflow:hidden;overscroll-behavior:contain;user-select:none;-webkit-user-select:none}
+.mapCanvas{position:absolute;inset:auto;transform-origin:center center;will-change:transform}
+.mapCanvas img{width:100%;height:100%;object-fit:fill;display:block;pointer-events:none;user-select:none;-webkit-user-drag:none}
+.mapOverlay{position:fixed;inset:0;z-index:7;width:100vw;height:100dvh;background:#E8F2D9}
+.mapFull{width:100vw;height:100dvh;aspect-ratio:auto;margin:0;border:0;border-radius:0;box-shadow:none;background:#E8F2D9}
+.mapFull .pin{z-index:10}
+.mapFull .zoom{z-index:30;right:12px;top:max(12px,env(safe-area-inset-top))}
