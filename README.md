@@ -81,3 +81,6 @@ index.html
 package.json
 vite.config.js
 ```
+
+## Moderatör güvenliği
+Vercel Project Settings > Environment Variables bölümüne `MODERATOR_PASSWORD` ve en az 32 karakterlik `SESSION_SECRET` ekleyin. Ardından projeyi yeniden yayınlayın. Yönetici paneli Profil sekmesindeki güvenli moderatör girişinden açılır.
