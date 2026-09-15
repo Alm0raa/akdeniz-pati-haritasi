@@ -7,7 +7,7 @@ const seed=[
 const S={full:["Dolu","#0A8F5B"],warning:["Azalıyor","#FFB000"],urgent:["Kontrol","#7146D9"],empty:["Boş olabilir","#F04444"]};
 const ago=t=>{let h=Math.max(0,Math.floor((Date.now()-t)/3600000));return h<1?"Şimdi":h<24?`${h} saat önce`:`${Math.floor(h/24)} gün önce`};
 function MapView({image,points,onPoint,admin,onAdd,full=false,onExpand,onClose}){
- const frame=useRef(null),active=useRef(new Map()),gesture=useRef({});
+ const frame=useRef(null),active=useRef(new globalThis.Map()),gesture=useRef({});
  const[z,setZ]=useState(full?1.15:1),[p,setP]=useState({x:0,y:0}),[moving,setMoving]=useState(false);
  const dist=a=>Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
  const down=e=>{if(e.target.closest('button'))return;e.preventDefault();e.currentTarget.setPointerCapture?.(e.pointerId);active.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const a=[...active.current.values()];if(a.length===1)gesture.current={sx:a[0].x,sy:a[0].y,x:p.x,y:p.y,z};if(a.length===2)gesture.current={d:dist(a),z,x:p.x,y:p.y};setMoving(true)};
