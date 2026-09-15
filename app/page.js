@@ -8,25 +8,49 @@ const initial=[
 ];
 const colors={full:'#14945f',warning:'#f0a51a',urgent:'#6c3bb8',empty:'#df3939'};
 function MapView({points,onPoint,full,onOpen,onClose}){
- const box=useRef(null), pointer=useRef({x:0,y:0,px:0,py:0});
+ const box=useRef(null), activePointers=useRef(new Map()), gesture=useRef({distance:0,zoom:1,x:0,y:0,px:0,py:0});
  const [zoom,setZoom]=useState(full?1:1.12),[pos,setPos]=useState(full?{x:-28,y:0}:{x:0,y:0}),[drag,setDrag]=useState(false);
  const clamp=(next,z=zoom)=>{
-  const w=box.current?.clientWidth||390,h=box.current?.clientHeight||520;
+  const w=box.current?.clientWidth||390,h=box.current?.clientHeight||700;
   const baseW=full?h*1.5:w,baseH=full?h:w/1.5;
   const maxX=Math.max(0,(baseW*z-w)/2),maxY=Math.max(0,(baseH*z-h)/2);
   return{x:Math.max(-maxX,Math.min(maxX,next.x)),y:Math.max(-maxY,Math.min(maxY,next.y))};
  };
- const down=e=>{if(e.target.closest('button'))return;e.currentTarget.setPointerCapture?.(e.pointerId);pointer.current={x:e.clientX,y:e.clientY,px:pos.x,py:pos.y};setDrag(true)};
- const move=e=>{if(!drag)return;e.preventDefault();setPos(clamp({x:pointer.current.px+e.clientX-pointer.current.x,y:pointer.current.py+e.clientY-pointer.current.y}))};
- const up=e=>{e.currentTarget.releasePointerCapture?.(e.pointerId);setDrag(false);setPos(p=>clamp(p))};
- const changeZoom=delta=>setZoom(z=>{const nz=Math.max(1,Math.min(3,z+delta));setPos(p=>clamp(p,nz));return nz});
+ const distance=values=>{const [a,b]=values;return Math.hypot(a.x-b.x,a.y-b.y)};
+ const down=e=>{
+  if(e.target.closest('button'))return;
+  e.preventDefault();e.currentTarget.setPointerCapture?.(e.pointerId);
+  activePointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const values=[...activePointers.current.values()];
+  if(values.length===1)gesture.current={...gesture.current,x:e.clientX,y:e.clientY,px:pos.x,py:pos.y};
+  if(values.length===2)gesture.current={...gesture.current,distance:distance(values),zoom};
+  setDrag(true);
+ };
+ const move=e=>{
+  if(!activePointers.current.has(e.pointerId))return;
+  e.preventDefault();activePointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const values=[...activePointers.current.values()];
+  if(values.length===1){
+   const a=values[0];setPos(clamp({x:gesture.current.px+a.x-gesture.current.x,y:gesture.current.py+a.y-gesture.current.y}));
+  }else if(values.length>=2){
+   const d=distance(values);const next=Math.max(1,Math.min(3,gesture.current.zoom*(d/Math.max(1,gesture.current.distance))));
+   setZoom(next);setPos(p=>clamp(p,next));
+  }
+ };
+ const up=e=>{
+  activePointers.current.delete(e.pointerId);e.currentTarget.releasePointerCapture?.(e.pointerId);
+  const values=[...activePointers.current.values()];
+  if(values.length===1){const a=values[0];gesture.current={...gesture.current,x:a.x,y:a.y,px:pos.x,py:pos.y}}
+  if(values.length===0){setDrag(false);setPos(p=>clamp(p))}
+ };
+ const changeZoom=delta=>setZoom(z=>{const next=Math.max(1,Math.min(3,z+delta));setPos(p=>clamp(p,next));return next});
  return <div ref={box} className={full?'map full':'map'} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
   <div className="mapInner" style={{transform:`translate3d(${pos.x}px,${pos.y}px,0) scale(${zoom})`,transition:drag?'none':'transform .18s'}}>
    <img src="/akdeniz-pati-haritasi.png" alt="Akdeniz Üniversitesi kampüs haritası" draggable="false"/>
    {points.map(p=><button className="pin mapPoint" key={p.id} style={{left:p.x+'%',top:p.y+'%',background:colors[p.status]}} onPointerDown={e=>e.stopPropagation()} onClick={()=>onPoint(p)}><PawPrint size={15}/></button>)}
   </div>
   <div className="mapTools">{full&&<button onClick={onClose}><X/></button>}<button onClick={()=>changeZoom(.25)}><Plus/></button><button onClick={()=>changeZoom(-.25)}><Minus/></button></div>
-  {full&&<div className="fullLegend"><span><i style={{background:colors.full}}/>Dolu</span><span><i style={{background:colors.warning}}/>Azalıyor</span><span><i style={{background:colors.urgent}}/>Kontrol</span></div>}
+  {full&&<><div className="fullLegend"><span><i style={{background:colors.full}}/>Dolu</span><span><i style={{background:colors.warning}}/>Azalıyor</span><span><i style={{background:colors.urgent}}/>Kontrol</span></div><div className="pinchHint">İki parmakla yakınlaştır</div></>}
   {!full&&<div className="mapBar"><span><PawPrint size={15}/> 3 örnek nokta</span><button onClick={onOpen}><Expand size={16}/> Büyüt</button></div>}
  </div>
 }
