@@ -9,7 +9,7 @@ const initial=[
 const colors={full:'#14945f',warning:'#f0a51a',urgent:'#6c3bb8',empty:'#df3939'};
 function MapView({points,onPoint,full,onOpen,onClose}){
  const box=useRef(null), pointer=useRef({x:0,y:0,px:0,py:0});
- const [zoom,setZoom]=useState(full?1.08:1.12),[pos,setPos]=useState({x:0,y:0}),[drag,setDrag]=useState(false);
+ const [zoom,setZoom]=useState(full?1:1.12),[pos,setPos]=useState(full?{x:-28,y:0}:{x:0,y:0}),[drag,setDrag]=useState(false);
  const clamp=(next,z=zoom)=>{
   const w=box.current?.clientWidth||390,h=box.current?.clientHeight||520;
   const baseW=full?h*1.5:w,baseH=full?h:w/1.5;
@@ -23,9 +23,10 @@ function MapView({points,onPoint,full,onOpen,onClose}){
  return <div ref={box} className={full?'map full':'map'} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
   <div className="mapInner" style={{transform:`translate3d(${pos.x}px,${pos.y}px,0) scale(${zoom})`,transition:drag?'none':'transform .18s'}}>
    <img src="/akdeniz-pati-haritasi.png" alt="Akdeniz Üniversitesi kampüs haritası" draggable="false"/>
-   {points.map(p=><button className="pin" key={p.id} style={{left:p.x+'%',top:p.y+'%',background:colors[p.status]}} onPointerDown={e=>e.stopPropagation()} onClick={()=>onPoint(p)}><PawPrint size={15}/></button>)}
+   {points.map(p=><button className="pin mapPoint" key={p.id} style={{left:p.x+'%',top:p.y+'%',background:colors[p.status]}} onPointerDown={e=>e.stopPropagation()} onClick={()=>onPoint(p)}><PawPrint size={15}/></button>)}
   </div>
   <div className="mapTools">{full&&<button onClick={onClose}><X/></button>}<button onClick={()=>changeZoom(.25)}><Plus/></button><button onClick={()=>changeZoom(-.25)}><Minus/></button></div>
+  {full&&<div className="fullLegend"><span><i style={{background:colors.full}}/>Dolu</span><span><i style={{background:colors.warning}}/>Azalıyor</span><span><i style={{background:colors.urgent}}/>Kontrol</span></div>}
   {!full&&<div className="mapBar"><span><PawPrint size={15}/> 3 örnek nokta</span><button onClick={onOpen}><Expand size={16}/> Büyüt</button></div>}
  </div>
 }
