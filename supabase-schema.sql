@@ -72,3 +72,38 @@ language sql security definer set search_path='' stable as $$
  select p.id,p.first_name,p.last_name,coalesce(sum(c.points),0)::bigint from public.profiles p join public.contributions c on c.user_id=p.id and c.is_valid=true where p.is_suspended=false and (period_name='all' or (period_name='week' and c.created_at>=date_trunc('week',now())) or (period_name='month' and c.created_at>=date_trunc('month',now()))) group by p.id,p.first_name,p.last_name order by 4 desc limit 50;
 $$;
 grant execute on function public.get_leaderboard(text) to authenticated;
+
+-- DURUMU GUNCELLE VE PUAN VER: tek, atomik islem
+create or replace function public.update_feeding_point_and_award(
+  target_point_id bigint,
+  new_status text,
+  action_name text
+)
+returns public.feeding_points
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_profile public.profiles;
+  updated_point public.feeding_points;
+  awarded integer;
+  last_action timestamptz;
+begin
+  if auth.uid() is null then raise exception 'Bu işlem için giriş yapmalısınız.'; end if;
+  select * into current_profile from public.profiles where id=auth.uid();
+  if current_profile.id is null then raise exception 'Kullanıcı profili bulunamadı.'; end if;
+  if current_profile.is_suspended then raise exception 'Hesabınız askıya alınmıştır.'; end if;
+  if new_status not in ('full','warning','urgent','empty') then raise exception 'Geçersiz mama noktası durumu.'; end if;
+  awarded := case action_name when 'food' then 20 when 'water' then 20 when 'photo' then 30 when 'still_has_food' then 5 when 'food_empty' then 5 when 'checked' then 5 when 'trip_completed' then 5 else null end;
+  if awarded is null then raise exception 'Geçersiz katkı işlemi.'; end if;
+  select max(created_at) into last_action from public.contributions where user_id=auth.uid() and point_ref=target_point_id::text and action_type=action_name and is_valid=true;
+  if last_action is not null and last_action>now()-interval '30 minutes' then raise exception 'Bu noktadan aynı işlem için yeniden puan kazanmak üzere 30 dakika beklemelisiniz.'; end if;
+  update public.feeding_points set status=new_status,updated_by=auth.uid(),updated_at=now() where id=target_point_id and is_active=true returning * into updated_point;
+  if updated_point.id is null then raise exception 'Mama noktası bulunamadı.'; end if;
+  insert into public.contributions(user_id,point_ref,action_type,points) values(auth.uid(),target_point_id::text,action_name,awarded);
+  return updated_point;
+end;
+$$;
+revoke all on function public.update_feeding_point_and_award(bigint,text,text) from public;
+grant execute on function public.update_feeding_point_and_award(bigint,text,text) to authenticated;
