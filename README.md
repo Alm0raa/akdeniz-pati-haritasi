@@ -81,3 +81,10 @@ index.html
 package.json
 vite.config.js
 ```
+
+## Profil sistemi
+Vercel ortam değişkenleri:
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_PUBLISHABLE_KEY
+
+`supabase-schema.sql` dosyasını Supabase SQL Editor'de bir kez çalıştırın. Ardından yeni deployment oluşturun. Yeni kayıtlar otomatik `member` rolü alır. Fakülte ve bölüm isteğe bağlıdır; sınıf alanı yoktur.
