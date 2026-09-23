@@ -1,37 +1,33 @@
--- SOSYAL ALAN MIGRATION
 create extension if not exists pgcrypto;
-create table if not exists public.social_posts(
- id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
- post_type text not null check(post_type in('support','level_up')), point_id bigint references public.feeding_points(id) on delete set null,
- action_type text, level_name text, body text, photo_url text, created_at timestamptz not null default now()
-);
-create table if not exists public.social_likes(
- post_id uuid references public.social_posts(id) on delete cascade,user_id uuid references auth.users(id) on delete cascade,created_at timestamptz default now(),primary key(post_id,user_id)
-);
-create table if not exists public.social_comments(
- id uuid primary key default gen_random_uuid(),post_id uuid references public.social_posts(id) on delete cascade,user_id uuid references auth.users(id) on delete cascade,body text not null check(char_length(body) between 1 and 500),created_at timestamptz default now()
-);
+create table if not exists public.social_posts(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,post_type text not null check(post_type in('support','level_up')),point_id bigint references public.feeding_points(id) on delete set null,action_type text,level_name text,body text,photo_url text,created_at timestamptz not null default now());
+create table if not exists public.social_likes(post_id uuid references public.social_posts(id) on delete cascade,user_id uuid references auth.users(id) on delete cascade,created_at timestamptz default now(),primary key(post_id,user_id));
+create table if not exists public.social_comments(id uuid primary key default gen_random_uuid(),post_id uuid references public.social_posts(id) on delete cascade,user_id uuid references auth.users(id) on delete cascade,body text not null check(char_length(body) between 1 and 500),created_at timestamptz default now());
 alter table public.social_posts enable row level security;alter table public.social_likes enable row level security;alter table public.social_comments enable row level security;
-drop policy if exists "social posts public read" on public.social_posts;create policy "social posts public read" on public.social_posts for select using(true);
-drop policy if exists "members create posts" on public.social_posts;create policy "members create posts" on public.social_posts for insert to authenticated with check(auth.uid()=user_id);
-drop policy if exists "owners delete posts" on public.social_posts;create policy "owners delete posts" on public.social_posts for delete to authenticated using(auth.uid()=user_id);
-drop policy if exists "likes public read" on public.social_likes;create policy "likes public read" on public.social_likes for select using(true);
-drop policy if exists "members like" on public.social_likes;create policy "members like" on public.social_likes for insert to authenticated with check(auth.uid()=user_id);
-drop policy if exists "members unlike" on public.social_likes;create policy "members unlike" on public.social_likes for delete to authenticated using(auth.uid()=user_id);
-drop policy if exists "comments public read" on public.social_comments;create policy "comments public read" on public.social_comments for select using(true);
-drop policy if exists "members comment" on public.social_comments;create policy "members comment" on public.social_comments for insert to authenticated with check(auth.uid()=user_id);
-drop policy if exists "owners delete comments" on public.social_comments;create policy "owners delete comments" on public.social_comments for delete to authenticated using(auth.uid()=user_id);
-create or replace function public.toggle_social_like(target_post_id uuid) returns void language plpgsql security definer set search_path='' as $$ begin if auth.uid() is null then raise exception 'Giriş yapmalısın';end if;if exists(select 1 from public.social_likes where post_id=target_post_id and user_id=auth.uid())then delete from public.social_likes where post_id=target_post_id and user_id=auth.uid();else insert into public.social_likes(post_id,user_id)values(target_post_id,auth.uid());end if;end;$$;
-grant execute on function public.toggle_social_like(uuid) to authenticated;
-create or replace view public.social_feed as
-select p.id,p.post_type,p.action_type,p.level_name,p.body,p.photo_url,p.created_at,p.user_id,fp.name point_name,
- trim(coalesce(pr.first_name,'')||' '||coalesce(pr.last_name,'')) full_name,
- case when pr.avatar_id is null then null else '/avatars/'||pr.avatar_id||'.png' end avatar_url,
- (select count(*) from public.social_likes l where l.post_id=p.id) like_count,
- (select count(*) from public.social_comments c where c.post_id=p.id) comment_count,
- false liked_by_me,
- coalesce(p.action_type,'destek') action_label,
- 'Yeni Pati'::text level_display
-from public.social_posts p left join public.profiles pr on pr.id=p.user_id left join public.feeding_points fp on fp.id=p.point_id;
-grant select on public.social_feed to anon,authenticated;
-do $$ begin if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='social_posts')then alter publication supabase_realtime add table public.social_posts;end if;if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='social_likes')then alter publication supabase_realtime add table public.social_likes;end if;if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='social_comments')then alter publication supabase_realtime add table public.social_comments;end if;end $$;
+drop policy if exists "social posts read" on public.social_posts;create policy "social posts read" on public.social_posts for select using(true);drop policy if exists "social posts insert" on public.social_posts;create policy "social posts insert" on public.social_posts for insert to authenticated with check(auth.uid()=user_id);drop policy if exists "social posts delete" on public.social_posts;create policy "social posts delete" on public.social_posts for delete to authenticated using(auth.uid()=user_id);
+drop policy if exists "social likes read" on public.social_likes;create policy "social likes read" on public.social_likes for select using(true);drop policy if exists "social likes insert" on public.social_likes;create policy "social likes insert" on public.social_likes for insert to authenticated with check(auth.uid()=user_id);drop policy if exists "social likes delete" on public.social_likes;create policy "social likes delete" on public.social_likes for delete to authenticated using(auth.uid()=user_id);
+drop policy if exists "social comments read" on public.social_comments;create policy "social comments read" on public.social_comments for select using(true);drop policy if exists "social comments insert" on public.social_comments;create policy "social comments insert" on public.social_comments for insert to authenticated with check(auth.uid()=user_id);drop policy if exists "social comments delete" on public.social_comments;create policy "social comments delete" on public.social_comments for delete to authenticated using(auth.uid()=user_id);
+create or replace function public.toggle_social_like(target_post_id uuid)returns void language plpgsql security definer set search_path='' as $$begin if auth.uid() is null then raise exception 'Giriş yapmalısın';end if;if exists(select 1 from public.social_likes where post_id=target_post_id and user_id=auth.uid())then delete from public.social_likes where post_id=target_post_id and user_id=auth.uid();else insert into public.social_likes(post_id,user_id)values(target_post_id,auth.uid());end if;end;$$;grant execute on function public.toggle_social_like(uuid) to authenticated;
+create or replace function public.get_social_feed()returns jsonb language sql security definer set search_path='' as $$select coalesce(jsonb_agg(item order by (item->>'created_at')::timestamptz desc),'[]'::jsonb)from(select jsonb_build_object('id',p.id,'post_type',p.post_type,'action_type',p.action_type,'action_label',case p.action_type when 'food' then 'mama' when 'water' then 'su' else 'destek' end,'level_name',coalesce(p.level_name,'Yeni Pati'),'body',p.body,'photo_url',p.photo_url,'created_at',p.created_at,'point_name',fp.name,'full_name',trim(coalesce(pr.first_name,'')||' '||coalesce(pr.last_name,'')),'avatar_url',null,'like_count',(select count(*) from public.social_likes l where l.post_id=p.id),'comment_count',(select count(*) from public.social_comments c where c.post_id=p.id),'liked_by_me',exists(select 1 from public.social_likes l where l.post_id=p.id and l.user_id=auth.uid()),'comments',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'body',c.body,'created_at',c.created_at,'full_name',trim(coalesce(cp.first_name,'')||' '||coalesce(cp.last_name,'')))order by c.created_at)from public.social_comments c left join public.profiles cp on cp.id=c.user_id where c.post_id=p.id),'[]'::jsonb))item from public.social_posts p left join public.profiles pr on pr.id=p.user_id left join public.feeding_points fp on fp.id=p.point_id)s;$$;grant execute on function public.get_social_feed() to anon,authenticated;
+do $$begin if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='social_posts')then alter publication supabase_realtime add table public.social_posts;end if;if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='social_likes')then alter publication supabase_realtime add table public.social_likes;end if;if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='social_comments')then alter publication supabase_realtime add table public.social_comments;end if;end$$;
+
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values('social-photos','social-photos',true,10485760,array['image/jpeg','image/png','image/webp'])
+on conflict(id) do update set public=true;
+drop policy if exists "social photos public read" on storage.objects;
+create policy "social photos public read" on storage.objects for select using(bucket_id='social-photos');
+drop policy if exists "members upload social photos" on storage.objects;
+create policy "members upload social photos" on storage.objects for insert to authenticated with check(bucket_id='social-photos' and (storage.foldername(name))[1]=auth.uid()::text);
+drop policy if exists "owners delete social photos" on storage.objects;
+create policy "owners delete social photos" on storage.objects for delete to authenticated using(bucket_id='social-photos' and owner_id=auth.uid()::text);
+create or replace function public.ensure_level_social_post(current_points integer)
+returns void language plpgsql security definer set search_path='' as $$
+declare level_title text;
+begin
+ if auth.uid() is null then return; end if;
+ level_title:=case when current_points>=3000 then 'HaySev Elçisi' when current_points>=1500 then 'Pati Koruyucusu' when current_points>=700 then 'Kampüs Gönüllüsü' when current_points>=300 then 'Mama Destekçisi' when current_points>=100 then 'Pati Dostu' else 'Yeni Pati' end;
+ if level_title='Yeni Pati' then return; end if;
+ if not exists(select 1 from public.social_posts where user_id=auth.uid() and post_type='level_up' and level_name=level_title) then
+  insert into public.social_posts(user_id,post_type,level_name) values(auth.uid(),'level_up',level_title);
+ end if;
+end;$$;
+grant execute on function public.ensure_level_social_post(integer) to authenticated;
